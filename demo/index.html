@@ -8,9 +8,12 @@
     <script src="../lazyloader.js"></script>
     <script>
 
-        var loader = LukesLazyLoader.load('http://localhost:8080/500-f00.css',
-            'http://localhost:8080/1500-javascript.js',
-            'http://localhost:8080/2500-00f.css');
+        var loader = LukesLazyLoader.load([
+          'http://localhost:8080/500-f00.css',
+          'http://localhost:8080/1500-javascript.js',
+          {url: 'http://localhost:8080/2500-00f.css'},
+          {url: 'http://localhost:8080/3500-ffff00.css', args: {titi: 'toto'}},
+        ]);
 
         loader.then(function () {
             console.log('all files have been loaded');

@@ -47,14 +47,22 @@ Usage
 -----
 
 ```javascript
-LukesLazyLoader.load('your', 'css', 'and', 'js', 'files').then(callback).then(anotherCallback);
+LukesLazyLoader.load(['your', 'css', 'and', 'js', 'files']).then(callback).then(anotherCallback);
 ```
 whenever you need it. If you need seperate callbacks for each file simply call
 
 ```javascript
 LukesLazyLoader.load('file1').then(callback1);
 LukesLazyLoader.load('file2').then(callback2);
-LukesLazyLoader.load('file3' 'file4').then(callback3);
+LukesLazyLoader.load(['file3', 'file4']).then(callback3);
+```
+
+Additional options can be provided by using a plain object instead of an url
+
+```javascript
+LukesLazyLoader.load({url: 'file1', type: 'css'}).then(callback1);
+LukesLazyLoader.load({url: 'file2', args: {async: true}}).then(callback2);
+LukesLazyLoader.load([{url: 'file3'}, 'file4']).then(callback3);
 ```
 
 Compatibility
@@ -76,7 +84,7 @@ Todo
 * [ ] Minification
 * [ ] Tests
 * [ ] Improve Demo
- 
+
 License
 -------
 

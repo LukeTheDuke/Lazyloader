@@ -37,23 +37,31 @@
    *
    * Example:
    *
-   * new LukesLazyLoader('/my/js/file.js', '//server.com/css/file.css', function() {
+   * new LukesLazyLoader(['/my/js/file.js', '//server.com/css/file.css'], function() {
    *   console.log('All files have been loaded');
    * });
    *
-   * @param {...string} [files] Optional. Any number of URLs to load
+   * Files can also be provided by giving a File object instead:
+   * {
+   *   url: URL,
+   *   args: object{string}, // add to dom object
+   *   type: TYPE, // force type: js or css
+   * }
+   *
+   *
+   * @param {string|string,File[]} [files] Optional. Any number of URLs to load
    * @param {Function} [callback] Optional. The callback the will be
    *     called when all files have been loaded.
    * @constructor
    */
   function LukesLazyLoader(files, callback) {
 
-    var args = Array.prototype.slice.call(arguments);
-    callback = this._isFunction(args[args.length - 1]) ? args.pop() : this._noop;
+    files = Array.isArray(files) ? files : [files];
+    callback = callback || this._noop;
     this._callbacks = [];
 
     this._addCallback(callback);
-    this.setFiles(args);
+    this.setFiles(files);
 
     this._setBrowserCssOnLoadSupport();
     window.setTimeout(this._load.bind(this), 0);
@@ -63,7 +71,7 @@
   /**
    * Preferred public API for loading files
    *
-   * @param {...string} [files] Optional. Any number of URLs to load
+   * @param {string|string,File[]} [files] Optional. Any number of URLs to load
    * @param {Function} [callback] Optional. The callback the will be
    *     called when all files have been loaded.
    * @returns {LukesLazyLoader} A new LukesLazyLoader instance
@@ -113,15 +121,24 @@
     /**
      * Sets the files that will be loaded with {@link LukesLazyLoader#load}.
      *
-     * @param {string[]|...string} files Any number of URLs to load. Pass
+     * @param {string,File[]} files Any number of URLs to load. Pass
      *     URLs as an array of strings or as multiple parameters (strings)
      * @returns {LukesLazyLoader} This instance
      */
     this.setFiles = function (files) {
       var len = files.length;
-      files = Array.isArray(files) ? files : Array.prototype.slice.call(arguments);
       this._files = [];
-      for (var i = 0; i < len; i++) this._files.push({url: files[i], loaded: false});
+      for (var i = 0; i < len; i++) {
+        var file = {loaded: false};
+        if (typeof files[i] === 'string') {
+          file.url = files[i];
+        } else {
+          Object.assign(file, files[i]);
+        }
+        file.type = this._getFileType(file.url);
+        this._files.push(file);
+      }
+      console.log(this._files);
       return this;
     };
 
@@ -141,7 +158,7 @@
     /**
      * Will load the given files after
      *
-     * @param {...string} [files] Optional. Any number of URLs to load
+     * @param {string,File[]} [files] Optional. Any number of URLs to load
      * @param {Function} [callback] Optional. The callback the will be
      *     called when all files (passed to this method) have been loaded.
      * @returns {LukesLazyLoader} This instance
@@ -160,20 +177,20 @@
      */
     this._load = function () {
       var len = this._files.length;
-      for (var i = 0; i < len; i++) this._loadFile(this._files[i].url)
+      for (var i = 0; i < len; i++) this._loadFile(this._files[i])
       return this;
     };
 
     /**
-     * Will detect the file type of a URL and load it with a link or script tag.
+     * Will check the file type and load it with a link or script tag.
      *
-     * @param {string} url The URL to load
+     * @param {string} url The File to load
      * @returns {LukesLazyLoader} This instance
      * @private
      */
-    this._loadFile = function (url) {
-      if (this._getFileType(url) === this._TYPE_JS) this._appendScript(url);
-      if (this._getFileType(url) === this._TYPE_CSS) this._appendStylesheet(url);
+    this._loadFile = function (file) {
+      if (file.type === this._TYPE_JS) this._appendScript(file);
+      if (file.type === this._TYPE_CSS) this._appendStylesheet(file);
       return this;
     };
 
@@ -181,15 +198,18 @@
      * Will append a script tag with a given URL to the head of the page
      * and set up callbacks.
      *
-     * @param {string} url The URL to load
+     * @param {File} file The js File to load
      * @returns {LukesLazyLoader} This instance
      * @private
      */
-    this._appendScript = function (url) {
+    this._appendScript = function (file) {
       var script = document.createElement('script');
       script.type = 'text/javascript';
-      script.src = url;
-      script.onload = this._getUrlLoadedMethod(url);
+      script.src = file.url;
+      script.onload = this._getUrlLoadedMethod(file.url);
+      if (file.args) {
+        this._setAttributes(script, file.args)
+      }
       this._appendToHead(script);
       return this;
     };
@@ -199,17 +219,20 @@
      * and set up callbacks. It will also invoke polling for browsers
      * that do not support onload events.
      *
-     * @param {string} url The URL to load
+     * @param {File} url The css File to load
      * @returns {LukesLazyLoader} This instance
      * @private
      */
-    this._appendStylesheet = function (url) {
+    this._appendStylesheet = function (file) {
       var stylesheet = document.createElement("link");
-      stylesheet.href = url;
+      stylesheet.href = file.url;
       stylesheet.rel = 'stylesheet';
       stylesheet.type = 'text/css';
-      stylesheet.onload = this._getUrlLoadedMethod(url);
-      stylesheet.onreadystatechange = this._getOnReadyStateChangeCallback(url);
+      stylesheet.onload = this._getUrlLoadedMethod(file.url);
+      stylesheet.onreadystatechange = this._getOnReadyStateChangeCallback(file.url);
+      if (file.args) {
+        this._setAttributes(stylesheet, file.args)
+      }
       this._appendToHead(stylesheet);
       if (!this._cssOnLoadSupport) this._pollStylesheet(stylesheet);
       return this;
@@ -318,18 +341,6 @@
     };
 
     /**
-     * Detects whether or not a variable is a function.
-     *
-     * @param functionToCheck The variable in question
-     * @returns {boolean} True if functionToCheck is a function, otherwise false
-     * @private
-     */
-    this._isFunction = function (functionToCheck) {
-      var getType = {};
-      return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
-    };
-
-    /**
      * Detects if a browser supports the onload-attribute on link tag.
      *
      * @returns {LukesLazyLoader} This instance
@@ -368,6 +379,20 @@
     this._invokeCallbacks = function () {
       var len = this._callbacks.length;
       for (var i = 0; i < len; i++) this._callbacks[i]();
+      return this;
+    };
+
+    /**
+     * Set all attributes from object to a DOM element
+     *
+     * @param {Element} target Target DOM element
+     * @returns {LukesLazyLoader} This instance
+     * @private
+     */
+    this._setAttributes = function (target, values) {
+      Object.keys(values).forEach(function(key) {
+        target.setAttribute(key, values[key]);
+      });
       return this;
     };
 
